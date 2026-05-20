@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Amor Isadora 💗</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background: #0b0710;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    #wrap { position: relative; width: 100%; height: 100%; }
+    #hint {
+      position: absolute;
+      left: 50%; top: 12px;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.85);
+      font-size: 14px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.15);
+      backdrop-filter: blur(6px);
+      user-select: none;
+      white-space: nowrap;
+      z-index: 10;
+      text-align: center;
+      pointer-events: none;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="hint">Toque e arraste para girar • meu pau</div>
+  </div>
+
+  <script type="module">
+    const wrap = document.getElementById('wrap');
+
+    let THREE;
+    try {
+      THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js');
+    } catch (err) {
+      document.body.innerHTML = `<div style="color:white;background:#000;position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;white-space:pre-wrap;font-family:system-ui">Falha ao carregar Three.js\n\n${String(err)}\n</div>`;
+      throw err;
+    }
+
+    // Cena
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0b0710, 0.035);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 0.2, 8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x0b0710, 1);
+    wrap.appendChild(renderer.domElement);
+
+    // Luzes
+    const ambient = new THREE.AmbientLight(0xff6fb1, 0.35);
+    scene.add(ambient);
+
+    const dir1 = new THREE.DirectionalLight(0xff4fa0, 1.2);
+    dir1.position.set(3, 4, 5);
+    scene.add(dir1);
+
+    const dir2 = new THREE.DirectionalLight(0xff8ac7, 0.8);
+    dir2.position.set(-4, -2, 2);
+    scene.add(dir2);
+
+    // Coração 3D (extrude 2D heart)
+    function heartShapePoints(scale = 1) {
+      const pts = [];
+      const steps = 260;
+      for (let i = 0; i <= steps; i++) {
+        const t = (i / steps) * Math.PI * 2;
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+        pts.push(new THREE.Vector2(x * scale, -y * scale));
+      }
+      return pts;
+    }
+
+    const heartScale = 0.055;
+    const heart2D = new THREE.Shape(heartShapePoints(heartScale));
+
+    const geometry = new THREE.ExtrudeGeometry(heart2D, {
+      depth: 1.0,
+      bevelEnabled: true,
+      bevelThickness: 0.22,
+      bevelSize: 0.12,
+      bevelSegments: 6,
+      steps: 2
+    });
+    geometry.center();
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xff3ea5,
+      emissive: 0x8f0049,
+      emissiveIntensity: 0.55,
+      roughness: 0.35,
+      metalness: 0.05
+    });
+
+    const heart = new THREE.Mesh(geometry, material);
+    heart.position.set(0, -0.6, 0);
+    scene.add(heart);
+
+    // Texto ISADORA em 2D na tela (sem textura 3D pra evitar travar no celular)
+    const canvasText = document.createElement('canvas');
+    const ctx = canvasText.getContext('2d');
+    const tex = new THREE.CanvasTexture(canvasText);
+
+    function drawText() {
+      const w = 1024;
+      const h = 512;
+      canvasText.width = w;
+      canvasText.height = h;
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.font = '900 96px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const grad = ctx.createLinearGradient(0, 0, w, 0);
+      grad.addColorStop(0.0, '#ff4fc0');
+      grad.addColorStop(0.5, '#ff8ad6');
+      grad.addColorStop(1.0, '#ff2a93');
+
+      ctx.shadowColor = 'rgba(255, 80, 180, 0.7)';
+      ctx.shadowBlur = 28;
+      ctx.fillStyle = grad;
+      ctx.fillText('ISADORA', w/2, h/2);
+
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.strokeText('ISADORA', w/2, h/2);
+
+      tex.needsUpdate = true;
+    }
+
+    drawText();
+
+    // Plano frontal do texto
+    const textMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+    const textPlane = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 3.1), textMat);
+    textPlane.position.set(0, 1.8, 0.2);
+    scene.add(textPlane);
+
+    // Interação simples: toque/arraste gira a câmera (sem OrbitControls)
+    let dragging = false;
+    let lastX = 0;
+    let yaw = 0;
+    let pitch = 0;
+
+    function onPointerDown(e) {
+      dragging = true;
+      lastX = e.clientX;
+    }
+    function onPointerMove(e) {
+      if (!dragging) return;
+      const dx = e.clientX - lastX;
+      lastX = e.clientX;
+      yaw += dx * 0.005;
+    }
+    function onPointerUp() { dragging = false; }
+
+    renderer.domElement.style.touchAction = 'none';
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    // Animação
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      const beat = 1 + 0.08 * Math.sin(t * 2.2);
+      heart.scale.set(beat, beat, beat);
+      heart.rotation.y = yaw + 0.35 * Math.sin(t * 0.6);
+      heart.rotation.x = -0.05 + 0.07 * Math.cos(t * 0.9);
+
+      // câmera orbita sutil
+      camera.position.x = 0.8 * Math.sin(yaw) + 0.35 * Math.sin(t * 0.35);
+      camera.position.z = 8.2;
+      camera.position.y = 0.25 + 0.15 * Math.cos(t * 0.45);
+      camera.lookAt(0, 0.3, 0);
+
+      textPlane.rotation.y = -0.25 * Math.sin(t * 0.25);
+
+      material.emissiveIntensity = 0.45 + 0.25 * (0.5 + 0.5 * Math.sin(t * 2.2));
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
+
