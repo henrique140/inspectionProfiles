@@ -1,0 +1,25 @@
+Colocar as imagens/vídeos na pasta certa para o coração abrir no celular.
+
+1) Crie uma pasta chamada:
+   media
+
+2) Coloque/renomeie os arquivos para exatamente estes nomes dentro de media:
+   - foto1.jpg
+   - foto2.jpg
+   - foto3.jpg
+   - foto4.jpg
+   - foto5.jpg
+   - fotoFinal.jpg
+
+3) Se você tiver vídeos, pode usar também (o código aceita):
+   - foto1.mp4 (ou .webm/.ogg)
+   mas mantenha os nomes.
+
+4) Seu arquivo amor_isadora.html já está procurando:
+   - ./media/foto1.jpg ... ./media/foto5.jpg
+   - ./media/fotoFinal.jpg
+
+5) Depois que a pasta media tiver os arquivos com esses nomes, compacte:
+   - amor_isadora.html
+   - a pasta media/
+   em um .zip e envie no WhatsApp.

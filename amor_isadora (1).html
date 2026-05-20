@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Amor Isadora 💗</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:       #08060d;
+      --pink:     #ff4fc0;
+      --pink2:    #ff1a8c;
+      --rose:     #ff8ad6;
+      --gold:     #f5d08a;
+      --white:    rgba(255,255,255,0.96);
+      --panel:    rgba(10,6,18,0.72);
+      --border:   rgba(255,100,200,0.18);
+      --glow:     rgba(255,60,180,0.28);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      overflow: hidden;
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      color: var(--white);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ============================================================
+       CANVAS / THREE.JS BASE
+    ============================================================ */
+    #threeCanvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    /* ============================================================
+       SCREEN SYSTEM — telas isoladas
+    ============================================================ */
+    .screen {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      pointer-events: none;
+      opacity: 0;
+      /* não usar transition aqui — controlado via JS com requestAnimationFrame */
+    }
+    .screen.active {
+      pointer-events: auto;
+      opacity: 1;
+    }
+
+    /* ============================================================
+       TELA INICIAL
+    ============================================================ */
+    #screenStart {
+      flex-direction: column;
+      gap: 0;
+      background: transparent;
+    }
+
+    #startHint {
+      position: absolute;
+      top: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      padding: 7px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,100,200,0.2);
+      backdrop-filter: blur(8px);
+      background: rgba(0,0,0,0.2);
+      white-space: nowrap;
+      animation: pulse-hint 3s ease-in-out infinite;
+    }
+    @keyframes pulse-hint {
+      0%,100% { opacity: 0.55; }
+      50%      { opacity: 0.9; }
+    }
+
+    /* ============================================================
+       PANEL BASE (quiz / resposta / final)
+    ============================================================ */
+    .panel {
+      width: min(94vw, 680px);
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      border-radius: 24px;
+      padding: 28px 24px 24px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(18px) saturate(1.4);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.04),
+        0 30px 80px rgba(0,0,0,0.5),
+        0 0 60px rgba(255,60,180,0.08);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,79,192,0.3) transparent;
+    }
+    .panel::-webkit-scrollbar { width: 4px; }
+    .panel::-webkit-scrollbar-track { background: transparent; }
+    .panel::-webkit-scrollbar-thumb { background: rgba(255,79,192,0.35); border-radius: 99px; }
+
+    /* ============================================================
+       TIPOGRAFIA DO QUIZ
+    ============================================================ */
+    .progress-label {
+      font-family: 'Cinzel', serif;
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: rgba(255,140,200,0.7);
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .progress-bar-wrap {
+      width: 100%;
+      height: 2px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 99px;
+      margin-bottom: 22px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--pink2), var(--pink), var(--rose));
+      border-radius: 99px;
+      transition: width 600ms cubic-bezier(0.4,0,0.2,1);
+    }
+
+    .question-text {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(20px, 5vw, 26px);
+      font-weight: 300;
+      font-style: italic;
+      line-height: 1.3;
+      text-align: center;
+      color: #fff;
+      margin-bottom: 24px;
+      letter-spacing: 0.3px;
+    }
+
+    /* ============================================================
+       OPÇÕES DE RESPOSTA
+    ============================================================ */
+    .choices {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .choice-btn {
+      position: relative;
+      border: 1px solid rgba(255,100,200,0.2);
+      border-radius: 14px;
+      padding: 13px 18px;
+      background: rgba(255,60,180,0.07);
+      color: rgba(255,255,255,0.9);
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(15px, 4vw, 17px);
+      font-weight: 400;
+      cursor: pointer;
+      text-align: center;
+      transition:
+        background 220ms ease,
+        border-color 220ms ease,
+        transform 160ms ease,
+        box-shadow 220ms ease;
+      overflow: hidden;
+    }
+    .choice-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,79,192,0.18), rgba(255,26,140,0.08));
+      opacity: 0;
+      transition: opacity 220ms ease;
+      border-radius: inherit;
+    }
+    .choice-btn:hover { transform: translateY(-1px); border-color: rgba(255,100,200,0.45); }
+    .choice-btn:hover::before { opacity: 0.7; }
+    .choice-btn:active { transform: scale(0.985); }
+    .choice-btn.selected {
+      border-color: var(--pink);
+      background: rgba(255,60,180,0.16);
+      box-shadow: 0 0 20px rgba(255,60,180,0.2), inset 0 0 12px rgba(255,79,192,0.08);
+    }
+    .choice-btn.selected::before { opacity: 1; }
+    .choice-btn.selected::after {
+      content: '💗';
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+    }
+
+    /* ============================================================
+       BOTÃO CONTINUAR
+    ============================================================ */
+    .btn-row {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 4px;
+    }
+
+    .pink-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 26px;
+      font-family: 'Cinzel', serif;
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--pink), var(--pink2));
+      color: #fff;
+      box-shadow: 0 8px 28px rgba(255,60,180,0.38), 0 2px 8px rgba(0,0,0,0.3);
+      transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+    }
+    .pink-btn:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 12px 36px rgba(255,60,180,0.5); }
+    .pink-btn:active { transform: scale(0.97); }
+    .pink-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* ============================================================
+       TELA DE RESPOSTA (foto + poema)
+    ============================================================ */
+    .media-wrap {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.3);
+      margin-bottom: 18px;
+      position: relative;
+    }
+    .media-wrap::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, transparent 60%, rgba(8,6,13,0.65));
+      pointer-events: none;
+    }
+
+    .media-img, .media-vid {
+      width: 100%;
+      display: block;
+      object-fit: cover;
+      max-height: 42vh;
+    }
+    .media-vid { display: none; }
+
+    .poem-text {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(15px, 4vw, 17px);
+      font-weight: 300;
+      font-style: italic;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.92);
+      text-align: center;
+      white-space: pre-wrap;
+      letter-spacing: 0.2px;
+      padding: 0 4px;
+    }
+
+    /* ============================================================
+       TELA FINAL
+    ============================================================ */
+    .final-title {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(14px, 4vw, 18px);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      text-align: center;
+      color: var(--rose);
+      margin-bottom: 18px;
+    }
+
+    .final-msg {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: clamp(15px, 4vw, 18px);
+      font-weight: 300;
+      font-style: italic;
+      line-height: 1.75;
+      text-align: center;
+      color: rgba(255,255,255,0.93);
+      white-space: pre-wrap;
+      letter-spacing: 0.2px;
+    }
+
+    /* ============================================================
+       PARTÍCULAS DE CORAÇÃO
+    ============================================================ */
+    #heartsBg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9;
+      overflow: hidden;
+    }
+
+    .heart-particle {
+      position: absolute;
+      top: -5%;
+      font-size: 16px;
+      animation: heart-fall linear infinite;
+      user-select: none;
+      filter: drop-shadow(0 4px 8px rgba(255,60,180,0.3));
+    }
+    @keyframes heart-fall {
+      0%   { transform: translateY(0) rotate(0deg) scale(0.8); opacity: 0; }
+      8%   { opacity: 1; }
+      92%  { opacity: 0.6; }
+      100% { transform: translateY(115vh) rotate(25deg) scale(1.1); opacity: 0; }
+    }
+
+    /* ============================================================
+       ORNAMENTOS DECORATIVOS
+    ============================================================ */
+    .ornament {
+      text-align: center;
+      color: rgba(255,140,200,0.45);
+      font-size: 12px;
+      letter-spacing: 8px;
+      margin: 12px 0;
+      user-select: none;
+    }
+
+    /* ============================================================
+       SEPARADOR
+    ============================================================ */
+    .divider {
+      width: 60px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--pink), transparent);
+      margin: 14px auto;
+    }
+
+    /* ============================================================
+       MEDIA QUERY MOBILE
+    ============================================================ */
+    @media (max-width: 420px) {
+      .panel { padding: 20px 16px 18px; }
+      .media-img, .media-vid { max-height: 38vh; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Canvas Three.js -->
+  <canvas id="threeCanvas"></canvas>
+
+  <!-- Partículas -->
+  <div id="heartsBg"></div>
+
+  <!-- ================================================================
+       TELA 1: INÍCIO
+  ================================================================ -->
+  <div id="screenStart" class="screen active">
+    <div id="startHint">Toque no coração</div>
+  </div>
+
+  <!-- ================================================================
+       TELA 2: PERGUNTA
+  ================================================================ -->
+  <div id="screenQuestion" class="screen">
+    <div class="panel" id="questionPanel">
+      <div class="progress-label" id="qProgressLabel"></div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="qProgressBar" style="width:0%"></div>
+      </div>
+      <div class="question-text" id="questionText"></div>
+      <div class="choices" id="choicesWrap"></div>
+      <div class="btn-row">
+        <button class="pink-btn" id="questionContinueBtn" disabled>Continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       TELA 3: RESPOSTA (foto + poema)
+  ================================================================ -->
+  <div id="screenAnswer" class="screen">
+    <div class="panel" id="answerPanel">
+      <div class="progress-label" id="aProgressLabel"></div>
+
+      <div class="media-wrap">
+        <img class="media-img" id="answerImg" alt="" />
+        <video class="media-vid" id="answerVid" playsinline muted loop></video>
+      </div>
+
+      <div class="ornament">— ✦ —</div>
+      <div class="poem-text" id="poemText"></div>
+      <div class="divider"></div>
+
+      <div class="btn-row">
+        <button class="pink-btn" id="answerContinueBtn">Continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       TELA 4: FINAL
+  ================================================================ -->
+  <div id="screenFinal" class="screen">
+    <div class="panel" id="finalPanel">
+      <div class="progress-label" style="letter-spacing:4px; margin-bottom: 14px;">✨ Fim do Quiz ✨</div>
+      <div class="final-title">Isadora, você é minha escolha</div>
+
+      <div class="media-wrap">
+        <img class="media-img" id="finalImg" alt="" />
+      </div>
+
+      <div class="ornament">— 💗 —</div>
+      <div class="final-msg" id="finalMsg"></div>
+      <div class="divider"></div>
+
+      <div class="btn-row" style="justify-content:center; margin-top: 16px;">
+        <button class="pink-btn" id="restartBtn">Recomeçar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================
+       SCRIPT PRINCIPAL
+  ================================================================ -->
+  <script type="module">
+    // ----------------------------------------------------------------
+    // THREE.JS — Tela do coração
+    // ----------------------------------------------------------------
+    let THREE;
+    try {
+      THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js');
+    } catch (err) {
+      console.error('Falha ao carregar Three.js', err);
+    }
+
+    const canvas = document.getElementById('threeCanvas');
+    let heart, material, textPlane, renderer, scene, camera;
+    let yaw = 0;
+    let dragging = false;
+    let lastPointerX = 0;
+    const clock = { t0: Date.now(), now: () => (Date.now() - clock.t0) / 1000 };
+
+    if (THREE) {
+      scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x08060d, 0.032);
+
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+      camera.position.set(0, 0.2, 8.5);
+
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.setClearColor(0x08060d, 1);
+
+      scene.add(new THREE.AmbientLight(0xff6fb1, 0.4));
+      const dl1 = new THREE.DirectionalLight(0xff4fa0, 1.3); dl1.position.set(3, 4, 5); scene.add(dl1);
+      const dl2 = new THREE.DirectionalLight(0xff8ac7, 0.7); dl2.position.set(-4, -2, 2); scene.add(dl2);
+      const pl = new THREE.PointLight(0xff2a93, 1.2, 12); pl.position.set(0, 0, 4); scene.add(pl);
+
+      // Geometria do coração
+      const heartShape = new THREE.Shape();
+      const pts = [];
+      for (let i = 0; i <= 300; i++) {
+        const t = (i / 300) * Math.PI * 2;
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+        pts.push(new THREE.Vector2(x * 0.055, -y * 0.055));
+      }
+      heartShape.setFromPoints(pts);
+
+      const geo = new THREE.ExtrudeGeometry(heartShape, {
+        depth: 1.0, bevelEnabled: true,
+        bevelThickness: 0.22, bevelSize: 0.12, bevelSegments: 8, steps: 2
+      });
+      geo.center();
+
+      material = new THREE.MeshStandardMaterial({
+        color: 0xff3ea5, emissive: 0x8f0049,
+        emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.08
+      });
+      heart = new THREE.Mesh(geo, material);
+      heart.position.set(0, -0.6, 0);
+      scene.add(heart);
+
+      // Texto ISADORA
+      const tc = document.createElement('canvas');
+      const tcCtx = tc.getContext('2d');
+      tc.width = 1024; tc.height = 384;
+      tcCtx.clearRect(0, 0, tc.width, tc.height);
+      tcCtx.font = '700 88px Cinzel, Georgia, serif';
+      tcCtx.textAlign = 'center'; tcCtx.textBaseline = 'middle';
+      const g = tcCtx.createLinearGradient(0, 0, tc.width, 0);
+      g.addColorStop(0, '#ff4fc0'); g.addColorStop(0.5, '#ffaee0'); g.addColorStop(1, '#ff2a93');
+      tcCtx.shadowColor = 'rgba(255,60,180,0.75)'; tcCtx.shadowBlur = 32;
+      tcCtx.fillStyle = g;
+      tcCtx.fillText('ISADORA', tc.width / 2, tc.height / 2);
+      const tex = new THREE.CanvasTexture(tc);
+
+      textPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(7.5, 2.8),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+      );
+      textPlane.position.set(0, 1.85, 0.2);
+      scene.add(textPlane);
+
+      // Arrasto
+      canvas.addEventListener('pointerdown', (e) => { dragging = true; lastPointerX = e.clientX; });
+      window.addEventListener('pointerup', () => { dragging = false; });
+      window.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        yaw += (e.clientX - lastPointerX) * 0.005;
+        lastPointerX = e.clientX;
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Render loop
+      (function loop() {
+        requestAnimationFrame(loop);
+        const t = clock.now();
+        const beat = 1 + 0.075 * Math.sin(t * 2.25);
+        heart.scale.set(beat, beat, beat);
+        heart.rotation.y = yaw + 0.3 * Math.sin(t * 0.55);
+        heart.rotation.x = -0.04 + 0.06 * Math.cos(t * 0.85);
+        camera.position.x = 0.6 * Math.sin(yaw) + 0.25 * Math.sin(t * 0.3);
+        camera.position.y = 0.25 + 0.12 * Math.cos(t * 0.4);
+        camera.lookAt(0, 0.25, 0);
+        textPlane.rotation.y = -0.2 * Math.sin(t * 0.22);
+        material.emissiveIntensity = 0.42 + 0.22 * (0.5 + 0.5 * Math.sin(t * 2.25));
+        renderer.render(scene, camera);
+      })();
+    }
+
+    // ----------------------------------------------------------------
+    // DADOS DO QUIZ
+    // ----------------------------------------------------------------
+    const QUIZ = [
+      {
+        question: 'Qual foi o momento que mudou tudo pra gente?',
+        options: ['Nosso primeiro beijo','Nossa primeira conversa séria','O momento em que percebi que te amava','Todos os momentos com você'],
+        media: 'foto1.jpg',
+        poem: 'Desde aquele momento, alguma coisa mudou dentro de mim.\nComo se meu coração finalmente tivesse encontrado o lugar certo.\nVocê transformou dias comuns em memórias eternas,\ne desde então, tudo ficou mais bonito quando é com você.'
+      },
+      {
+        question: 'Qual detalhe meu você mais ama?',
+        options: ['Seu sorriso','Seu olhar','Seu jeito comigo','Tudo em você'],
+        media: 'foto2.jpg',
+        poem: 'Existem bilhões de pessoas no mundo,\nmas nenhuma tem o jeito que você tem.\nSeu sorriso virou meu lugar favorito,\ne sua presença consegue acalmar até os meus dias mais difíceis.'
+      },
+      {
+        question: 'Qual memória nossa merece ser revivida infinitamente?',
+        options: ['Nosso primeiro encontro','Nosso primeiro beijo','Nossas conversas aleatórias','Todas elas'],
+        media: 'foto3.jpg',
+        poem: 'Se eu pudesse parar o tempo,\nescolheria viver nossos melhores momentos em looping.\nPorque ao seu lado,\naté os segundos mais simples se tornam especiais.'
+      },
+      {
+        question: 'Você acredita que fomos feitos um para o outro?',
+        options: ['Sim, totalmente','Com toda certeza','Desde o começo','Em todas as vidas possíveis'],
+        media: 'foto4.jpg',
+        poem: 'Talvez o universo tenha errado em muitas coisas,\nmas acertou exatamente quando colocou você na minha vida.\nVocê virou minha coincidência favorita,\nmeu conforto,\nmeu amor.'
+      },
+      {
+        question: 'Você me escolheria de novo?',
+        options: ['Hoje','Amanhã','Em outra vida','Sempre'],
+        media: 'foto5.jpg',
+        poem: 'E mesmo se o mundo recomeçasse mil vezes,\neu ainda procuraria você.\nAinda escolheria seu abraço,\nseu sorriso,\nseu amor.\nPorque amar você foi a melhor coisa que já aconteceu comigo.'
+      }
+    ];
+
+    const FINAL_TEXT =
+      'Obrigado por existir na minha vida.\n' +
+      'Cada momento ao seu lado virou parte de quem eu sou.\n' +
+      'E independente do tempo, da distância ou do futuro…\n' +
+      'eu sempre vou escolher você.\n\n' +
+      'Eu te amo, Isadora. 💗';
+
+    // ----------------------------------------------------------------
+    // ESTADO
+    // ----------------------------------------------------------------
+    const state = {
+      phase: 'start',   // start | question | answer | final
+      index: 0,
+      selected: null
+    };
+
+    // ----------------------------------------------------------------
+    // UTILITÁRIOS DE TELA
+    // ----------------------------------------------------------------
+    const screens = {
+      start:    document.getElementById('screenStart'),
+      question: document.getElementById('screenQuestion'),
+      answer:   document.getElementById('screenAnswer'),
+      final:    document.getElementById('screenFinal')
+    };
+
+    function fadeOut(el, duration = 350) {
+      return new Promise(resolve => {
+        el.style.transition = `opacity ${duration}ms ease, transform ${duration}ms ease`;
+        el.style.opacity = '0';
+        el.style.transform = 'scale(0.97) translateY(6px)';
+        setTimeout(() => {
+          el.classList.remove('active');
+          el.style.transition = '';
+          el.style.opacity = '';
+          el.style.transform = '';
+          el.style.pointerEvents = 'none';
+          resolve();
+        }, duration);
+      });
+    }
+
+    function fadeIn(el, duration = 400) {
+      return new Promise(resolve => {
+        el.style.opacity = '0';
+        el.style.transform = 'scale(1.02) translateY(-6px)';
+        el.classList.add('active');
+        el.style.pointerEvents = 'auto';
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.style.transition = `opacity ${duration}ms cubic-bezier(0.2,0,0,1), transform ${duration}ms cubic-bezier(0.2,0,0,1)`;
+            el.style.opacity = '1';
+            el.style.transform = 'scale(1) translateY(0)';
+            setTimeout(() => {
+              el.style.transition = '';
+              el.style.opacity = '';
+              el.style.transform = '';
+              resolve();
+            }, duration);
+          });
+        });
+      });
+    }
+
+    async function switchTo(name, duration = 350) {
+      // fecha todas
+      const promises = Object.entries(screens)
+        .filter(([k, el]) => el.classList.contains('active'))
+        .map(([k, el]) => fadeOut(el, duration));
+      await Promise.all(promises);
+      await fadeIn(screens[name], duration + 50);
+    }
+
+    // ----------------------------------------------------------------
+    // PARTÍCULAS DE CORAÇÃO
+    // ----------------------------------------------------------------
+    const heartsBg = document.getElementById('heartsBg');
+    let particleInterval = null;
+
+    function spawnParticle() {
+      const p = document.createElement('div');
+      p.className = 'heart-particle';
+      p.textContent = Math.random() < 0.7 ? '💗' : '✦';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.fontSize = (12 + Math.random() * 14) + 'px';
+      const dur = 4 + Math.random() * 4;
+      p.style.animationDuration = dur + 's';
+      p.style.animationDelay = '0s';
+      p.style.opacity = String(0.5 + Math.random() * 0.5);
+      heartsBg.appendChild(p);
+      setTimeout(() => p.remove(), dur * 1000 + 200);
+    }
+
+    function startParticles() {
+      if (particleInterval) return;
+      // cria vários de imediato
+      for (let i = 0; i < 18; i++) {
+        setTimeout(spawnParticle, Math.random() * 2000);
+      }
+      particleInterval = setInterval(spawnParticle, 380);
+    }
+
+    function stopParticles() {
+      clearInterval(particleInterval);
+      particleInterval = null;
+      heartsBg.innerHTML = '';
+    }
+
+    // ----------------------------------------------------------------
+    // TELA: PERGUNTA
+    // ----------------------------------------------------------------
+    function renderQuestion(idx) {
+      const item = QUIZ[idx];
+      state.selected = null;
+
+      // progresso
+      const pct = ((idx) / QUIZ.length) * 100;
+      document.getElementById('qProgressLabel').textContent = `Pergunta ${idx + 1} de ${QUIZ.length}`;
+      document.getElementById('qProgressBar').style.width = pct + '%';
+
+      // texto
+      document.getElementById('questionText').textContent = item.question;
+
+      // opções
+      const wrap = document.getElementById('choicesWrap');
+      wrap.innerHTML = '';
+      item.options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn';
+        btn.textContent = opt;
+        btn.type = 'button';
+        btn.addEventListener('click', () => selectChoice(btn, opt));
+        wrap.appendChild(btn);
+      });
+
+      // continuar
+      const contBtn = document.getElementById('questionContinueBtn');
+      contBtn.disabled = true;
+      contBtn.onclick = null;
+      contBtn.onclick = () => {
+        if (!state.selected) return;
+        goToAnswer(idx);
+      };
+    }
+
+    function selectChoice(btn, opt) {
+      state.selected = opt;
+      document.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      document.getElementById('questionContinueBtn').disabled = false;
+    }
+
+    // ----------------------------------------------------------------
+    // TELA: RESPOSTA
+    // ----------------------------------------------------------------
+    function renderAnswer(idx) {
+      const item = QUIZ[idx];
+      document.getElementById('aProgressLabel').textContent = `${idx + 1} / ${QUIZ.length}`;
+
+      // media
+      const img = document.getElementById('answerImg');
+      const vid = document.getElementById('answerVid');
+      const isVideo = /\.(mp4|webm|ogg)$/i.test(item.media);
+      if (isVideo) {
+        img.style.display = 'none';
+        vid.style.display = 'block';
+        vid.src = item.media;
+        vid.play().catch(() => {});
+      } else {
+        vid.pause(); vid.src = '';
+        vid.style.display = 'none';
+        img.style.display = 'block';
+        img.src = item.media;
+      }
+
+      // poema
+      document.getElementById('poemText').textContent = item.poem;
+
+      // continuar
+      const btn = document.getElementById('answerContinueBtn');
+      btn.onclick = null;
+      btn.onclick = () => {
+        const next = idx + 1;
+        if (next < QUIZ.length) {
+          goToQuestion(next);
+        } else {
+          goToFinal();
+        }
+      };
+    }
+
+    // ----------------------------------------------------------------
+    // TELA: FINAL
+    // ----------------------------------------------------------------
+    function renderFinal() {
+      document.getElementById('finalImg').src = 'fotoFinal.jpg';
+      document.getElementById('finalMsg').textContent = FINAL_TEXT;
+      startParticles();
+
+      document.getElementById('restartBtn').onclick = () => {
+        stopParticles();
+        state.index = 0;
+        state.selected = null;
+        goToStart();
+      };
+    }
+
+    // ----------------------------------------------------------------
+    // TRANSIÇÕES
+    // ----------------------------------------------------------------
+    async function goToQuestion(idx) {
+      state.index = idx;
+      state.phase = 'question';
+      renderQuestion(idx);
+      await switchTo('question');
+    }
+
+    async function goToAnswer(idx) {
+      state.phase = 'answer';
+      renderAnswer(idx);
+      await switchTo('answer');
+    }
+
+    async function goToFinal() {
+      state.phase = 'final';
+      renderFinal();
+      await switchTo('final', 500);
+    }
+
+    async function goToStart() {
+      state.phase = 'start';
+      await switchTo('start', 400);
+    }
+
+    // ----------------------------------------------------------------
+    // INÍCIO: clique no coração
+    // ----------------------------------------------------------------
+    function isNearCenter(e) {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2 + 60;
+      const dx = e.clientX - cx;
+      const dy = e.clientY - cy;
+      const r = Math.min(window.innerWidth, window.innerHeight) * 0.26;
+      return dx*dx + dy*dy <= r*r;
+    }
+
+    // Animação cinematográfica do coração antes de entrar no quiz
+    function cinematicEntry() {
+      if (!heart || !renderer) {
+        // sem Three.js, vai direto
+        goToQuestion(0);
+        return;
+      }
+
+      // desabilitar interação de arrastar
+      dragging = false;
+
+      const t0 = performance.now();
+      const dur = 700;
+      const startZ = camera.position.z;
+      const startYaw = yaw;
+
+      function tick(now) {
+        const p = Math.min(1, (now - t0) / dur);
+        const e = 1 - Math.pow(1 - p, 3); // ease-out cubic
+
+        heart.scale.setScalar(1 + 0.4 * e);
+        heart.rotation.y = startYaw + 0.6 * e;
+        material.emissiveIntensity = 0.55 + 0.5 * e;
+        camera.position.z = startZ - 1.2 * e;
+
+        if (p < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          goToQuestion(0);
+        }
+      }
+      requestAnimationFrame(tick);
+    }
+
+    // Eventos de início
+    if (canvas) {
+      canvas.addEventListener('click', (e) => {
+        if (state.phase !== 'start') return;
+        if (!isNearCenter(e)) return;
+        cinematicEntry();
+      });
+    }
+    // Fallback: clique na tela de início também funciona
+    screens.start.addEventListener('click', (e) => {
+      if (state.phase !== 'start') return;
+      cinematicEntry();
+    });
+
+    // ----------------------------------------------------------------
+    // INICIAR NA TELA 1
+    // ----------------------------------------------------------------
+    state.phase = 'start';
+  </script>
+</body>
+</html>
